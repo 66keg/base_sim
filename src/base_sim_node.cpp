@@ -11,20 +11,20 @@
 #include "tf/transform_broadcaster.h"
 #include "tf/transform_datatypes.h"
 
-static const double dt = 0.01;	// 制御周期 [sec]
-double cmd_v_, cmd_w_ = 0.0;	// 制御コマンド
-double odom_x_, odom_y_, odom_th_, odom_v_, odom_w_;	// オドメトリ
+static const double CONTROL_PERIOD = 0.01;	// 制御周期 [sec]
+double g_cmd_v, g_cmd_w;	// 制御コマンド
+double g_odom_x, g_odom_y, g_odom_th, g_odom_v, g_odom_w;	// オドメトリ
 
-void cmdCallback(const geometry_msgs::Twist::ConstPtr& msg)
+void cmdCallback(const geometry_msgs::Twist::ConstPtr& cmdMsg)
 {
-	cmd_v_ = msg->linear.x;
-	cmd_w_ = msg->angular.z;
+	g_cmd_v = cmdMsg->linear.x;
+	g_cmd_w = cmdMsg->angular.z;
 }
 
-bool reset(std_srvs::Empty::Request  &req,
-           std_srvs::Empty::Response &res)
+bool resetOdom(std_srvs::Empty::Request  &emptyReq,
+               std_srvs::Empty::Response &emptyRes)
 {
-	odom_x_ = odom_y_ = odom_th_ = 0.0;
+	g_odom_x = g_odom_y = g_odom_th = 0.0;
 	return true;
 }
 
@@ -35,48 +35,49 @@ int main(int argc, char **argv)
 
 	ros::Publisher pub_odom = n.advertise<nav_msgs::Odometry>("odom", 1);
 	ros::Subscriber sub_cmd = n.subscribe("cmd_vel", 1, cmdCallback);
-	ros::ServiceServer service = n.advertiseService("reset_odom", reset);
+	ros::ServiceServer srv_reset = n.advertiseService("reset_odom", resetOdom);
 	tf::TransformBroadcaster tf_odom2base;
 
-	ros::Rate loop_rate(1.0/dt);
+	ros::Rate loop_rate(1.0/CONTROL_PERIOD);
 
-	odom_x_ = odom_y_ = odom_th_ = odom_v_ = odom_w_ = 0.0;
+	g_cmd_v = g_cmd_w = 0.0;
+	g_odom_x = g_odom_y = g_odom_th = g_odom_v = g_odom_w = 0.0;
 
 	while (ros::ok())
 	{
-		odom_v_ = cmd_v_;
-		odom_w_ = cmd_w_;
-		odom_x_ += odom_v_ * cos(odom_th_) * dt;
-		odom_y_ += odom_v_ * sin(odom_th_) * dt;
-		odom_th_ += odom_w_ * dt;
+		g_odom_v = g_cmd_v;
+		g_odom_w = g_cmd_w;
+		g_odom_x += g_odom_v * cos(g_odom_th) * CONTROL_PERIOD;
+		g_odom_y += g_odom_v * sin(g_odom_th) * CONTROL_PERIOD;
+		g_odom_th += g_odom_w * CONTROL_PERIOD;
 
 		geometry_msgs::Quaternion link_quat2D;
-		link_quat2D = tf::createQuaternionMsgFromYaw(odom_th_);
+		link_quat2D = tf::createQuaternionMsgFromYaw(g_odom_th);
 
 		ros::Time current_time = ros::Time::now();
 
-		nav_msgs::Odometry odomMsg;
-		odomMsg.header.stamp 			= current_time;
-		odomMsg.header.frame_id 	= "odom";
-		odomMsg.child_frame_id 		= "base_link";
-		odomMsg.pose.pose.position.x  	= odom_x_;
-		odomMsg.pose.pose.position.y 	  = odom_y_;
-		odomMsg.pose.pose.position.z  	= 0.0;
-		odomMsg.pose.pose.orientation 	= link_quat2D;
-		odomMsg.twist.twist.linear.x  	= odom_v_;
-		odomMsg.twist.twist.linear.y  	= 0.0;
-		odomMsg.twist.twist.linear.z  	= 0.0;
-		odomMsg.twist.twist.angular.x 	= 0.0;
-		odomMsg.twist.twist.angular.y 	= 0.0;
-		odomMsg.twist.twist.angular.z 	= odom_w_;
-		pub_odom.publish(odomMsg);
+		nav_msgs::Odometry odom_msg;
+		odom_msg.header.stamp 			= current_time;
+		odom_msg.header.frame_id 	= "odom";
+		odom_msg.child_frame_id 		= "base_link";
+		odom_msg.pose.pose.position.x  	= g_odom_x;
+		odom_msg.pose.pose.position.y 	  = g_odom_y;
+		odom_msg.pose.pose.position.z  	= 0.0;
+		odom_msg.pose.pose.orientation 	= link_quat2D;
+		odom_msg.twist.twist.linear.x  	= g_odom_v;
+		odom_msg.twist.twist.linear.y  	= 0.0;
+		odom_msg.twist.twist.linear.z  	= 0.0;
+		odom_msg.twist.twist.angular.x 	= 0.0;
+		odom_msg.twist.twist.angular.y 	= 0.0;
+		odom_msg.twist.twist.angular.z 	= g_odom_w;
+		pub_odom.publish(odom_msg);
 
 		geometry_msgs::TransformStamped trans_link;
 		trans_link.header.stamp 			= current_time;
 		trans_link.header.frame_id 		= "odom";
 		trans_link.child_frame_id 		= "base_link";
-		trans_link.transform.translation.x 	= odom_x_;
-		trans_link.transform.translation.y 	= odom_y_;
+		trans_link.transform.translation.x 	= g_odom_x;
+		trans_link.transform.translation.y 	= g_odom_y;
 		trans_link.transform.translation.z 	= 0.0;
 		trans_link.transform.rotation 		= link_quat2D;
 		tf_odom2base.sendTransform(trans_link);
