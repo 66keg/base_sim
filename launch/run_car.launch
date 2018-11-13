@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+　　<node name="car_sim_node" pkg="base_sim" type="car_sim_node" >
+     <param name="length" value="0.5" />
+   </node>
+　　<node name="teleop_twist_keyboard" pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" output="screen" />
+　　<node name="rviz" pkg="rviz" type="rviz" args="-d $(find base_sim)/rviz/base_sim.rviz" />
+</launch>

@@ -18,3 +18,6 @@ include_directories(
 
 add_executable(base_sim_node src/base_sim_node.cpp)
 target_link_libraries(base_sim_node ${catkin_LIBRARIES})
+
+add_executable(car_sim_node src/car_sim_node.cpp)
+target_link_libraries(car_sim_node ${catkin_LIBRARIES})
